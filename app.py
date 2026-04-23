@@ -1,7 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from math import atan2, cos, radians, sin, sqrt
+
+from flask import Flask, jsonify, render_template, request
 import searoute as sr
 
 app = Flask(__name__)
+app.config["JSON_SORT_KEYS"] = False
 
 PORTS = [
     # ═══════════════════════════════════════════════════════════════
@@ -642,31 +645,213 @@ PORTS = [
 ]
 
 
+def _normalize_text(value):
+    return " ".join((value or "").strip().lower().split())
+
+
+def _find_port(name, country=None):
+    normalized_name = _normalize_text(name)
+    normalized_country = _normalize_text(country)
+    for port in PORTS:
+        if _normalize_text(port["name"]) != normalized_name:
+            continue
+        if normalized_country and _normalize_text(port["country"]) != normalized_country:
+            continue
+        return port
+    return None
+
+
+FEATURED_ROUTES = [
+    {
+        "label": "Europe to Southeast Asia",
+        "origin": _find_port("Rotterdam", "Netherlands"),
+        "destination": _find_port("Singapore", "Singapore"),
+    },
+    {
+        "label": "Mediterranean to Gulf",
+        "origin": _find_port("Valencia", "Spain"),
+        "destination": _find_port("Jebel Ali", "UAE"),
+    },
+    {
+        "label": "US West Coast to East Asia",
+        "origin": _find_port("Long Beach", "USA"),
+        "destination": _find_port("Shanghai", "China"),
+    },
+    {
+        "label": "India to Europe",
+        "origin": _find_port("Mundra", "India"),
+        "destination": _find_port("Piraeus", "Greece"),
+    },
+]
+
+PORT_COUNT = len(PORTS)
+COUNTRY_COUNT = len({port["country"] for port in PORTS})
+
+
+def _serialize_boot_payload():
+    return {
+        "featuredRoutes": [route for route in FEATURED_ROUTES if route["origin"] and route["destination"]],
+        "stats": {
+            "portCount": PORT_COUNT,
+            "countryCount": COUNTRY_COUNT,
+        },
+        "defaults": {
+            "speedKnots": 18,
+        },
+    }
+
+
+def _score_port_match(port, query):
+    name = _normalize_text(port["name"])
+    country = _normalize_text(port["country"])
+    tokens = query.split()
+    score = 0
+
+    if query == name:
+        score += 160
+    if query == country:
+        score += 110
+    if name.startswith(query):
+        score += 90
+    if country.startswith(query):
+        score += 55
+    if query in name:
+        score += 50
+    if query in country:
+        score += 25
+
+    for token in tokens:
+        if token in name:
+            score += 14
+        if token in country:
+            score += 8
+
+    return score
+
+
+def _search_ports(query):
+    normalized_query = _normalize_text(query)
+    if len(normalized_query) < 2:
+        return []
+
+    ranked = []
+    for port in PORTS:
+        score = _score_port_match(port, normalized_query)
+        if score:
+            ranked.append((score, port))
+
+    ranked.sort(
+        key=lambda item: (
+            -item[0],
+            item[1]["country"].lower(),
+            item[1]["name"].lower(),
+        )
+    )
+    return [port for _, port in ranked[:8]]
+
+
+def _validate_port_payload(port_payload, label):
+    if not isinstance(port_payload, dict):
+        raise ValueError(f"{label} port payload is invalid.")
+
+    name = (port_payload.get("name") or "").strip()
+    country = (port_payload.get("country") or "").strip()
+
+    try:
+        lat = float(port_payload["lat"])
+        lon = float(port_payload["lon"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"{label} port coordinates are invalid.") from exc
+
+    if not name or not country:
+        raise ValueError(f"{label} port is missing a name or country.")
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError(f"{label} port coordinates are out of range.")
+
+    return {
+        "name": name,
+        "country": country,
+        "lat": lat,
+        "lon": lon,
+    }
+
+
+def _haversine_nautical_miles(origin, destination):
+    earth_radius_km = 6371.0088
+    lat1 = radians(origin["lat"])
+    lon1 = radians(origin["lon"])
+    lat2 = radians(destination["lat"])
+    lon2 = radians(destination["lon"])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    distance_km = earth_radius_km * c
+    return distance_km / 1.852
+
+
+def _build_route_brief(origin, destination, passages, distance_naut, detour_naut, efficiency_ratio):
+    if passages:
+        passage_text = ", ".join(passages[:3])
+        route_shape = f"threads through {passage_text} before closing into {destination['name']}."
+    else:
+        route_shape = f"stays on the navigable sea lane between {origin['country']} and {destination['country']} without named chokepoints returned by the routing engine."
+
+    if detour_naut > 0 and efficiency_ratio:
+        detour_pct = round((efficiency_ratio - 1) * 100)
+        efficiency_text = f"The plotted route runs about {detour_naut:,.1f} nmi longer than the great-circle line, a {detour_pct}% routing premium."
+    else:
+        efficiency_text = "The plotted route stays close to the great-circle line, which signals a relatively direct corridor."
+
+    return {
+        "headline": f"{origin['name']} to {destination['name']}",
+        "summary": f"This voyage covers {distance_naut:,.1f} nmi and {route_shape} {efficiency_text}",
+    }
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        boot_payload=_serialize_boot_payload(),
+        port_count=PORT_COUNT,
+        country_count=COUNTRY_COUNT,
+    )
+
+
+@app.route("/health")
+def healthcheck():
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/ports")
 def search_ports():
-    query = request.args.get("q", "").strip().lower()
-    if len(query) < 2:
-        return jsonify([])
-    matches = [
-        p for p in PORTS
-        if query in p["name"].lower() or query in p["country"].lower()
-    ][:10]
-    return jsonify(matches)
+    return jsonify(_search_ports(request.args.get("q", "")))
+
+
+@app.route("/api/resolve-port")
+def resolve_port():
+    name = request.args.get("name", "")
+    country = request.args.get("country", "")
+    port = _find_port(name, country) or _find_port(name)
+    if not port:
+        return jsonify({"error": "Port not found"}), 404
+    return jsonify(port)
 
 
 @app.route("/api/route", methods=["POST"])
 def compute_route():
-    data = request.get_json()
-    origin = data.get("origin")
-    destination = data.get("destination")
+    data = request.get_json(silent=True) or {}
 
-    if not origin or not destination:
-        return jsonify({"error": "Origin and destination are required"}), 400
+    try:
+        origin = _validate_port_payload(data.get("origin"), "Origin")
+        destination = _validate_port_payload(data.get("destination"), "Destination")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if origin["name"] == destination["name"] and origin["country"] == destination["country"]:
+        return jsonify({"error": "Select two different ports to compute a route."}), 400
 
     try:
         route_naut = sr.searoute(
@@ -675,35 +860,55 @@ def compute_route():
             units="naut",
             return_passages=True,
         )
-        route_km = sr.searoute(
-            [origin["lon"], origin["lat"]],
-            [destination["lon"], destination["lat"]],
-            units="km",
-        )
-
         coords = route_naut["geometry"]["coordinates"]
         leaflet_coords = [[c[1], c[0]] for c in coords]
 
         dist_naut = round(route_naut.properties["length"], 1)
-        dist_km = round(route_km.properties["length"], 1)
+        dist_km = round(dist_naut * 1.852, 1)
         dist_miles = round(dist_naut * 1.15078, 1)
-        duration_hours = route_naut.properties.get("duration_hours")
+        baseline_speed_knots = 18
+        duration_hours = round(dist_naut / baseline_speed_knots, 1)
         passages = route_naut.properties.get("passages", [])
+        great_circle_naut = round(_haversine_nautical_miles(origin, destination), 1)
+        detour_naut = round(max(dist_naut - great_circle_naut, 0), 1)
+        efficiency_ratio = round(dist_naut / great_circle_naut, 3) if great_circle_naut else None
+        brief = _build_route_brief(
+            origin=origin,
+            destination=destination,
+            passages=passages,
+            distance_naut=dist_naut,
+            detour_naut=detour_naut,
+            efficiency_ratio=efficiency_ratio,
+        )
 
-        return jsonify({
-            "distance_naut": dist_naut,
-            "distance_km": dist_km,
-            "distance_miles": dist_miles,
-            "duration_hours": duration_hours,
-            "passages": passages,
-            "coordinates": leaflet_coords,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify(
+            {
+                "origin": origin,
+                "destination": destination,
+                "distance_naut": dist_naut,
+                "distance_km": dist_km,
+                "distance_miles": dist_miles,
+                "duration_hours": duration_hours,
+                "baseline_speed_knots": baseline_speed_knots,
+                "great_circle_naut": great_circle_naut,
+                "detour_naut": detour_naut,
+                "efficiency_ratio": efficiency_ratio,
+                "passages": passages,
+                "brief": brief,
+                "coordinates": leaflet_coords,
+            }
+        )
+    except Exception:
+        return jsonify(
+            {
+                "error": "The routing engine could not compute this corridor right now. Try a different port pairing."
+            }
+        ), 500
 
 
 if __name__ == "__main__":
     import os
+
     port = int(os.environ.get("PORT", 5050))
     debug = os.environ.get("FLASK_ENV") == "development"
     app.run(host="0.0.0.0", port=port, debug=debug)
