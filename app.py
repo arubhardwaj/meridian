@@ -6,6 +6,8 @@ import searoute as sr
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
 
+ASSET_VERSION = "20260423-2"
+
 PORTS = [
     # ═══════════════════════════════════════════════════════════════
     # EUROPE — Western Europe
@@ -817,6 +819,7 @@ def index():
         boot_payload=_serialize_boot_payload(),
         port_count=PORT_COUNT,
         country_count=COUNTRY_COUNT,
+        asset_version=ASSET_VERSION,
     )
 
 
