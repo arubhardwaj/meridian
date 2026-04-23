@@ -90,10 +90,10 @@ button {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-columns: 460px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: 18px;
   height: 100dvh;
-  padding: 18px;
+  padding: 16px;
 }
 
 .mobile-toggle {
@@ -119,9 +119,12 @@ button {
 
 .rail-inner {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   height: calc(100dvh - 36px);
   overflow-y: auto;
-  padding-right: 8px;
+  padding-right: 6px;
   scrollbar-width: thin;
 }
 
@@ -137,7 +140,7 @@ button {
 .section-card {
   position: relative;
   overflow: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   border: 1px solid var(--surface-outline);
   border-radius: 28px;
   background: var(--bg-card);
@@ -158,7 +161,7 @@ button {
 .hero-card,
 .planner-card,
 .insight-card {
-  padding: 24px;
+  padding: 20px;
 }
 
 .hero-top,
@@ -249,7 +252,7 @@ h3 {
 
 h1 {
   max-width: 13ch;
-  font-size: clamp(2rem, 3vw, 2.85rem);
+  font-size: clamp(1.85rem, 2.6vw, 2.5rem);
   line-height: 1;
 }
 
@@ -276,9 +279,9 @@ h3 {
 .hero-copy {
   position: relative;
   z-index: 1;
-  margin-top: 18px;
+  margin-top: 14px;
   max-width: 46ch;
-  font-size: 0.98rem;
+  font-size: 0.94rem;
 }
 
 .hero-stats {
@@ -286,13 +289,13 @@ h3 {
   z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .hero-stat {
   min-width: 0;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--surface-outline);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.03);
@@ -300,8 +303,8 @@ h3 {
 
 .hero-stat strong {
   display: block;
-  margin-top: 8px;
-  font-size: 1rem;
+  margin-top: 6px;
+  font-size: 0.95rem;
 }
 
 .theme-toggle,
@@ -345,14 +348,14 @@ h3 {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 14px;
-  margin-top: 20px;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .planner-field {
   position: relative;
   display: block;
-  padding: 16px 16px 14px;
+  padding: 14px 14px 12px;
   border: 1px solid var(--surface-outline);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
@@ -365,7 +368,7 @@ h3 {
 
 .field-label {
   display: inline-block;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--muted);
@@ -415,6 +418,8 @@ h3 {
   display: grid;
   gap: 6px;
   padding: 10px;
+  max-height: 240px;
+  overflow-y: auto;
   border: 1px solid var(--surface-outline-strong);
   border-radius: 18px;
   background: var(--bg-card-strong);
@@ -461,8 +466,8 @@ h3 {
 }
 
 .speed-card {
-  margin-top: 18px;
-  padding: 18px;
+  margin-top: 16px;
+  padding: 16px;
   border-radius: 22px;
   border: 1px solid var(--surface-outline);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
@@ -493,7 +498,7 @@ h3 {
 .preset-block {
   position: relative;
   z-index: 1;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .preset-head {
@@ -517,7 +522,7 @@ h3 {
 
 .preset-pill,
 .callout-pill {
-  padding: 11px 14px;
+  padding: 10px 13px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--surface-outline);
@@ -545,7 +550,7 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 18px;
 }
 
 .primary-btn {
@@ -575,12 +580,12 @@ h3 {
 .helper-copy {
   position: relative;
   z-index: 1;
-  margin-top: 14px;
-  font-size: 0.92rem;
+  margin-top: 12px;
+  font-size: 0.9rem;
 }
 
 .empty-state {
-  padding: 18px;
+  padding: 16px;
   border: 1px dashed var(--surface-outline-strong);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.03);
@@ -620,7 +625,7 @@ h3 {
 }
 
 .metric-card {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--surface-outline);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.04);
@@ -650,7 +655,7 @@ h3 {
 .narrative-card,
 .passages-card,
 .error-card {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--surface-outline);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.04);
@@ -845,11 +850,34 @@ h3 {
 
 @media (max-width: 1180px) {
   .app-shell {
-    grid-template-columns: 420px minmax(0, 1fr);
+    grid-template-columns: 390px minmax(0, 1fr);
   }
 
   .hero-stats {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 921px) {
+  .planner-card {
+    overflow: visible;
+  }
+
+  .insight-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .empty-state,
+  .results-stack {
+    min-height: 0;
+  }
+
+  .results-stack {
+    overflow-y: auto;
+    padding-right: 4px;
   }
 }
 

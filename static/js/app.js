@@ -104,12 +104,23 @@ function createAutocompleteController({ fieldName, input, clearButton, dropdown 
     suggestions: [],
     activeIndex: -1,
     timerId: null,
+    closeTimerId: null,
+    requestId: 0,
   };
 
   input.addEventListener("input", () => handleAutocompleteInput(controller));
   input.addEventListener("keydown", (event) => handleAutocompleteKeydown(event, controller));
+  input.addEventListener("focus", () => {
+    if (controller.suggestions.length) {
+      controller.dropdown.classList.remove("hidden");
+    }
+  });
   input.addEventListener("blur", () => {
-    window.setTimeout(() => closeDropdown(controller), 120);
+    window.clearTimeout(controller.closeTimerId);
+    controller.closeTimerId = window.setTimeout(() => closeDropdown(controller), 180);
+  });
+  dropdown.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
   });
 
   clearButton.addEventListener("click", () => {
@@ -131,12 +142,20 @@ function handleAutocompleteInput(controller) {
 
   window.clearTimeout(controller.timerId);
   if (query.length < 2) {
+    controller.requestId += 1;
     closeDropdown(controller);
     return;
   }
 
+  const requestId = ++controller.requestId;
   controller.timerId = window.setTimeout(async () => {
     const suggestions = await fetchPortSuggestions(query);
+    if (requestId !== controller.requestId) {
+      return;
+    }
+    if (controller.input.value.trim() !== query) {
+      return;
+    }
     controller.suggestions = suggestions;
     controller.activeIndex = suggestions.length ? 0 : -1;
     renderDropdown(controller);
@@ -202,6 +221,8 @@ function renderDropdown(controller) {
     return;
   }
 
+  closeSiblingDropdowns(controller.fieldName);
+
   controller.suggestions.forEach((port, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -213,9 +234,13 @@ function renderDropdown(controller) {
     }
 
     button.innerHTML = `<div><strong>${escapeHtml(port.name)}</strong><span>${escapeHtml(port.country)}</span></div>`;
-    button.addEventListener("mousedown", (event) => {
+    button.addEventListener("pointerdown", (event) => {
       event.preventDefault();
-      selectPort(controller.fieldName, port);
+      commitPortSelection(controller, port);
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      commitPortSelection(controller, port);
     });
     controller.dropdown.appendChild(button);
   });
@@ -224,10 +249,25 @@ function renderDropdown(controller) {
 }
 
 function closeDropdown(controller) {
+  window.clearTimeout(controller.closeTimerId);
   controller.dropdown.classList.add("hidden");
   controller.dropdown.innerHTML = "";
   controller.suggestions = [];
   controller.activeIndex = -1;
+}
+
+function closeSiblingDropdowns(fieldName) {
+  Object.entries(autocompleteControllers).forEach(([key, controller]) => {
+    if (key !== fieldName) {
+      closeDropdown(controller);
+    }
+  });
+}
+
+function commitPortSelection(controller, port) {
+  window.clearTimeout(controller.closeTimerId);
+  selectPort(controller.fieldName, port);
+  controller.input.focus({ preventScroll: true });
 }
 
 function selectPort(fieldName, port) {
@@ -236,6 +276,7 @@ function selectPort(fieldName, port) {
     resetComputedRoute();
   }
 
+  closeSiblingDropdowns(fieldName);
   state[fieldName] = port;
   autocompleteControllers[fieldName].input.value = portLabel(port);
   updateFieldState(autocompleteControllers[fieldName]);
@@ -246,6 +287,7 @@ function selectPort(fieldName, port) {
 function clearSelection(fieldName, options = {}) {
   const controller = autocompleteControllers[fieldName];
   const hadSelection = Boolean(state[fieldName]);
+  controller.requestId += 1;
   state[fieldName] = null;
 
   if (!options.preserveInput) {
